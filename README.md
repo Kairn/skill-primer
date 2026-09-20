@@ -9,3 +9,15 @@ I collect foundational concepts and practices for skilled engineers to deepen an
 Practical problems, generally solvable within 60-90 minutes. No trick questions or LeetCode style puzzles. Meant to practice building real system components, using Python library and idioms, and advanced techniques such as async design and concurrency handling.
 
 See details in [prac_code/](prac_code/README.md).
+
+## System Design Patterns :boar:
+
+Concise yet deep discussions on practical patterns, strategies, and technologies that aid your (classic/traditional) system design tasks. Centered around more advanced topics oriented towards veterans as refresher or exploration of new tools.
+
+### Topics
+
+* [P2P](design_patterns/p2p.md) - Peer-to-peer protocol internals and applications.
+
+## OS and System Internals :penguin:
+
+## AI/LLM Domain :lobster:
