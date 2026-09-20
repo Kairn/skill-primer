@@ -1,0 +1,10 @@
+[project]
+name = "prac-code"
+version = "0.1.0"
+description = "Practical Coding Exercise Modules in Modern Python"
+readme = "README.md"
+authors = [{ name = "Eddy Soma", email = "esoma92.dev@gmail.com" }]
+requires-python = ">=3.14"
+
+[dependency-groups]
+dev = ["ruff>=0.16.8"]
