@@ -7,3 +7,5 @@ I collect foundational concepts and practices for skilled engineers to deepen an
 ## Practical Coding :mortar_board:
 
 Practical problems, generally solvable within 60-90 minutes. No trick questions or LeetCode style puzzles. Meant to practice building real system components, using Python library and idioms, and advanced techniques such as async design and concurrency handling.
+
+See details in [prac_code/](prac_code/README.md).
