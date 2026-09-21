@@ -17,6 +17,7 @@ Concise yet deep discussions on practical patterns, strategies, and technologies
 ### Topics
 
 * [P2P](design_patterns/p2p.md) - Peer-to-peer protocol internals and applications.
+* [LB](design_patterns/lb.md) - Load balancing techniques and modern optimizations.
 
 ## OS and System Internals :penguin:
 
