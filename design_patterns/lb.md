@@ -5,7 +5,7 @@ Load balancing nowadays is largely a software (implementation) driven problem. C
 * **Elasticity.** Capacity scales with demand. Dynamic sizing without having to commit to a fixed expense is valuable.
 * **Cloud-native built-in solutions.** AWS/GCP/Azure and other cloud platforms provide them by default. Easy integration and migration.
 
-:warning: Although it is NOT strictly wrong to throw in hardware LBs, they are relegated to legacy and super specialized use cases. More importantly, little depth comes out of discussion them because you have no control over the box.
+:warning: Although it is NOT strictly wrong to throw in hardware LBs, they are relegated to legacy and super specialized use cases. More importantly, little depth comes out of discussing them because you have no control over the box.
 
 ## L4LB
 
@@ -28,7 +28,7 @@ But going directly to L7 has severe downsides other than pure scaling concerns, 
 Any **software L4LB running on Linux** can leverage eBPF/XDP to further optimize packet processing compared to default software (e.g. iptables). eBPF programs run directly inside the Linux Kernel and can intercept packets without entering user space, before reaching the networking stack, and it can achieve very high throughput on commodity hardware. Note, L7 protocol cannot be understood at this layer due to how early interception happens in the data path.
 
 ## Client Side Load Balancing
-Often an overlooked aspect in system design. Client side LB is implemented without a centralized server/fleet, instead, the clients themselves decide how to route traffic. It is applicable only for east-west (internal) traffic which is why public services never touches it.
+Often an overlooked aspect in system design. Client side LB is implemented without a centralized server/fleet, instead, the clients themselves decide how to send traffic. It is applicable only for east-west (internal) traffic which is why public services never touch it.
 
 A common approach in modern systems is to deploy a sidecar (e.g. Envoy) alongside each node that intercepts traffic and acts as a proxy between internal services. Sidecar is kept up-to-date with a control plane service, and it can also handle retry, encryption, metrics emission, and other utilities for free. Typically used in large enterprises as a common client implementation for its microservice network.
 
