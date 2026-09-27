@@ -1,3 +1,6 @@
 lint:
     uv run ruff check --fix .
     uv run ruff format .
+
+test-all:
+    uv run --script problems/batch_process_client.py
