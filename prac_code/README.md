@@ -21,3 +21,4 @@ just lint
 ## Problem List
 
 - [Batch Process Client](./problems/batch_process_client.py) - API client with implicit request batching that is transparent to the user.
+- [Health Checking LB](./problems/health_checking_lb.py) - Load balancer with non-blocking automatic health checks.
