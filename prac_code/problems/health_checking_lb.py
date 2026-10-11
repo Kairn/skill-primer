@@ -50,7 +50,7 @@ class Endpoint:
         self.check_count = 0
         self._lock = threading.Lock()
 
-    def health_check(self):
+    def health_check(self) -> bool:
         with self._lock:
             self.check_count += 1
         if self.mode == Endpoint.HANG:
@@ -68,24 +68,134 @@ class Endpoint:
 
 
 # ---------- Implementation ----------
+import random
+import sched
+from concurrent.futures import ThreadPoolExecutor
+
+
+class EndpointState:
+    """Internal state for an endpoint being monitored by the load balancer."""
+
+    def __init__(self, endpoint: Endpoint):
+        self.endpoint = endpoint
+        self.recovery_passes = 0
+        self.consecutive_failures = 0
+        self.healthy = True
+        self.check_in_progress = False
+        self.deregistered = False
+        self.deadline = 0
+        self.attempt_id = 0
+        self.resolve_id = 0
+
+        self._rng = random.Random()
+
+    def set_deadline(self):
+        if self.healthy:
+            self.deadline = time.monotonic() + CHECK_INTERVAL
+        else:
+            # Exponential backoff for unhealthy endpoints
+            backoff = min(2**self.consecutive_failures * CHECK_INTERVAL, 10)
+            self.deadline = time.monotonic() + self._rng.uniform(0, backoff)
+
+
 class LoadBalancer:
-    def __init__(self):
-        raise NotImplementedError
+    def __init__(self, max_workers=100):
+        self.endpoints: dict[str, EndpointState] = {}
+        self.healthy_endpoints: set[str] = set()
+
+        self._rng = random.Random()
+        self._scheduler = sched.scheduler(time.monotonic, time.sleep)
+        self._executor = ThreadPoolExecutor(max_workers=max_workers)
+        self._scheduler_thread = threading.Thread(
+            target=self._run_scheduler_loop, daemon=True
+        )
+        self._scheduler_thread.start()
+        self._lock = threading.Lock()
 
     def register(self, endpoint: Endpoint):
-        raise NotImplementedError
+        if endpoint.name in self.endpoints:
+            return  # Already registered
+        ep_state = EndpointState(endpoint)
+        self.endpoints[endpoint.name] = ep_state
+        self.healthy_endpoints.add(endpoint.name)
+        self._scheduler.enter(CHECK_INTERVAL, 1, self._run_health_check, (ep_state,))
 
     def deregister(self, endpoint: Endpoint):
-        raise NotImplementedError
+        if endpoint.name in self.endpoints:
+            ep_state = self.endpoints[endpoint.name]
+            ep_state.deregistered = True
+            del self.endpoints[endpoint.name]
+            self.healthy_endpoints.discard(endpoint.name)
 
-    def route(self) -> str:
-        raise NotImplementedError
+    def route(self) -> Endpoint:
+        if not self.healthy_endpoints:
+            raise NoHealthyEndpointError("No healthy endpoints available")
+        chosen = self._rng.choice(list(self.healthy_endpoints))
+        return self.endpoints[chosen].endpoint
+
+    def _run_scheduler_loop(self):
+        while True:
+            self._scheduler.run()
+            time.sleep(0.05)
+
+    def _run_health_check(self, ep_state: EndpointState):
+        if ep_state.deregistered:
+            return
+        if ep_state.check_in_progress or time.monotonic() < ep_state.deadline:
+            self._scheduler.enter(
+                CHECK_INTERVAL, 1, self._run_health_check, (ep_state,)
+            )
+            return
+
+        ep_state.check_in_progress = True
+        ep_state.attempt_id += 1
+        attempt_id = ep_state.attempt_id
+        self._executor.submit(self._probe_endpoint, ep_state, attempt_id)
+        self._scheduler.enter(
+            CHECK_TIMEOUT, 1, self._finish_check, (ep_state, attempt_id, False)
+        )
+
+    def _disable_endpoint(self, ep_state: EndpointState):
+        ep_state.healthy = False
+        ep_state.recovery_passes = 0
+        ep_state.consecutive_failures += 1
+        self.healthy_endpoints.discard(ep_state.endpoint.name)
+
+    def _probe_endpoint(self, ep_state: EndpointState, attempt_id: int) -> bool:
+        try:
+            success = ep_state.endpoint.health_check()
+        except Exception:
+            success = False
+        finally:
+            ep_state.check_in_progress = False
+        self._finish_check(ep_state, attempt_id, success)
+
+    def _finish_check(self, ep_state: EndpointState, attempt_id: int, success: bool):
+        with self._lock:
+            if ep_state.deregistered or attempt_id <= ep_state.resolve_id:
+                return
+            ep_state.resolve_id = attempt_id
+            if success:
+                ep_state.consecutive_failures = 0
+                if not ep_state.healthy:
+                    ep_state.recovery_passes += 1
+                    if ep_state.recovery_passes >= HEALTHY_THRESHOLD:
+                        # Re-enable the endpoint
+                        ep_state.recovery_passes = 0
+                        ep_state.healthy = True
+                        self.healthy_endpoints.add(ep_state.endpoint.name)
+            else:
+                self._disable_endpoint(ep_state)
+
+            ep_state.set_deadline()
+
+        self._scheduler.enter(CHECK_INTERVAL, 1, self._run_health_check, (ep_state,))
 
 
 # ---------- Testing ----------
 TEST_TIMEOUT = 30
-GRACE = CHECK_INTERVAL + CHECK_TIMEOUT + 1.0  # Time to notice a failure
-RECOVERY = HEALTHY_THRESHOLD * CHECK_INTERVAL + 2.5  # Time to be re-enabled
+GRACE = CHECK_INTERVAL + CHECK_TIMEOUT + 2.0  # Time to notice a failure
+RECOVERY = HEALTHY_THRESHOLD * CHECK_INTERVAL + 5.0  # Time to be re-enabled
 
 
 @contextmanager
