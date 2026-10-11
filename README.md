@@ -15,11 +15,15 @@ See details in [prac_code/](prac_code/README.md).
 Concise yet deep discussions on practical patterns, strategies, and technologies that aid your (classic/traditional) system design tasks. Centered around more advanced topics oriented towards veterans as refresher or exploration of new tools.
 
 ### Topics
-
 * [P2P](design_patterns/p2p.md) - Peer-to-peer protocol internals and applications.
 * [LB](design_patterns/lb.md) - Load balancing techniques and modern optimizations.
 * [Sharding](design_patterns/shard.md) - Sharding/partitioning strategies in real systems and nuances.
 
 ## OS and System Internals :penguin:
+
+Modern operating system (Linux centric) internals every capable programmers should know.
+
+### Topics
+* [SMP](systems/smp.md) - Symmetric multiprocessing, CPU scheduling behavior on modern system architectures.
 
 ## AI/LLM Domain :lobster:
