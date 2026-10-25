@@ -44,14 +44,82 @@ def make(rate=10, burst=10):
 
 
 # ---------- Implementation ----------
-class RateLimiter:
-    def __init__(self, rate, burst, clock=time.monotonic):
-        # TODO
-        raise NotImplementedError
+class TokenBucket:
+    def __init__(self, rate: int, burst: int, clock=time.monotonic):
+        self.rate = rate
+        self.burst = burst
+        self.tokens: float = burst
+        self.clock = clock
+        self.last_check = self.clock()
+        self.lock = threading.Lock()
 
-    def allow(self, key, weight=1):
-        # TODO
-        raise NotImplementedError
+    def check(self, weight=1) -> bool:
+        with self.lock:
+            # Refill tokens based on elapsed time, by second
+            now = self.clock()
+            elapsed = now - self.last_check
+            refill_amount = elapsed * self.rate
+            self.tokens = min(self.burst, self.tokens + refill_amount)
+
+            # Check tokens
+            self.last_check = now
+            if self.tokens >= weight:
+                self.tokens -= weight
+                return True
+            else:
+                return False
+
+    def is_stale(self) -> bool:
+        now = self.clock()
+        elapsed = now - self.last_check
+        refill_amount = elapsed * self.rate
+        return refill_amount + self.tokens >= self.burst and elapsed > 30
+
+
+class RateLimiter:
+    SHARDS = 16  # Number of shards for the buckets dictionary
+    CAPACITY = 1000  # Soft limit for the number of keys per shard
+
+    def __init__(self, rate: int, burst: int, clock=time.monotonic):
+        if rate <= 0 or burst <= 0:
+            raise ValueError("Rate and burst must be positive integers")
+        self.rate = rate
+        self.burst = burst
+        self.clock = clock
+        self.shards: list[tuple[threading.Lock, dict[str, TokenBucket]]] = [
+            (threading.Lock(), {}) for _ in range(self.SHARDS)
+        ]
+
+        # Cleanup daemon
+        self._cleanup = threading.Thread(
+            target=self._stale_buckets_cleanup_daemon, daemon=True
+        )
+        self._cleanup.start()
+
+    def allow(self, key, weight: int = 1) -> bool:
+        if type(weight) is not int or weight <= 0:
+            raise ValueError("Weight must be positive")
+        if weight > self.burst:
+            return False  # Deny requests we cannot ever satisfy
+
+        shard_index = hash(key) % self.SHARDS
+        lock, buckets = self.shards[shard_index]
+        with lock:
+            bucket = buckets.setdefault(
+                key, TokenBucket(self.rate, self.burst, clock=self.clock)
+            )
+            return bucket.check(weight)
+
+    def _stale_buckets_cleanup_daemon(self):
+        while True:
+            time.sleep(60)  # Check every 60 seconds
+            for lock, buckets in self.shards:
+                if len(buckets) > self.CAPACITY * 0.8:  # Start cleanup when 80% full
+                    with lock:
+                        # Best-effort cleanup
+                        stale_keys = [k for k, b in buckets.items() if b.is_stale()]
+                        for k in stale_keys:
+                            del buckets[k]
 
 
 # ---------- Testing ----------
