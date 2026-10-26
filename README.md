@@ -18,6 +18,7 @@ Concise yet deep discussions on practical patterns, strategies, and technologies
 * [P2P](design_patterns/p2p.md) - Peer-to-peer protocol internals and applications.
 * [LB](design_patterns/lb.md) - Load balancing techniques and modern optimizations.
 * [Sharding](design_patterns/shard.md) - Sharding/partitioning strategies in real systems and nuances.
+* [Throttling]() - TODO.
 
 ## OS and System Internals :penguin:
 
@@ -27,3 +28,8 @@ Modern operating system (Linux centric) internals every capable programmers shou
 * [SMP](systems/smp.md) - Symmetric multiprocessing, CPU scheduling behavior on modern system architectures.
 
 ## AI/LLM Domain :lobster:
+
+Specific domain knowledge on AI inference engineering and infrastructure.
+
+### Topics
+* [GPU](ai/gpu.md) - Introduction to GPU (Nvidia focused) architecture and its specialization.
