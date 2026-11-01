@@ -18,7 +18,7 @@ Concise yet deep discussions on practical patterns, strategies, and technologies
 * [P2P](design_patterns/p2p.md) - Peer-to-peer protocol internals and applications.
 * [LB](design_patterns/lb.md) - Load balancing techniques and modern optimizations.
 * [Sharding](design_patterns/shard.md) - Sharding/partitioning strategies in real systems and nuances.
-* [Throttling]() - TODO.
+* [Throttling](design_patterns/throttling.md) - Throttling (rate limiting) methods for non-trivial applications.
 
 ## OS and System Internals :penguin:
 
