@@ -23,3 +23,4 @@ just lint
 - [Batch Process Client](./problems/batch_process_client.py) - API client with implicit request batching that is transparent to the user.
 - [Health Checking LB](./problems/health_checking_lb.py) - Load balancer with non-blocking automatic health checks.
 - [Rate Limiter](./problems/rate_limiter.py) - Multi-tenant weighted rate limiter for concurrent request throttling.
+- [Stream Processor](./problems/stream_processor.py) - Asynchronous generator of events from chunked data stream.
