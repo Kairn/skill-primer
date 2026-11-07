@@ -21,14 +21,14 @@ Core requirements:
 - If the source finishes in the middle of a frame, raise `IncompleteStreamError`.
 
 Stretch goals:
-- Handle malformed JSON and idle timeout.
+- Handle malformed JSON.
 - Memory efficiency on large chunks/frames.
 """
 
 import asyncio
 import json
 import struct
-from collections.abc import AsyncIterator, Iterable
+from collections.abc import AsyncIterator, Iterable, Iterator
 
 
 # ---------- Scaffolding ----------
@@ -50,13 +50,58 @@ HEADER_SIZE = HEADER.size  # 4
 
 
 # ---------- Implementation ----------
+from contextlib import aclosing
+
+
 class StreamProcessor:
     def __init__(self, max_frame_size: int = 1_048_576):
         self.max_frame_size = max_frame_size
+        self._buffer = bytearray()
+        self._frame_size = -1
+        self._remaining = HEADER_SIZE
+        self._offset = 0
+
+    def feed(self, chunk: bytes) -> Iterator[dict]:
+        self._offset = 0
+        while self._offset < len(chunk):
+            to_load: int = min(self._remaining, len(chunk) - self._offset)
+            self._buffer += chunk[self._offset : self._offset + to_load]
+            self._offset += to_load
+            self._remaining -= to_load
+
+            if self._remaining == 0:
+                if self._frame_size == -1:
+                    # Header complete
+                    (n,) = HEADER.unpack_from(self._buffer, 0)
+                    if n < 2:
+                        raise FrameError("Frame payload is too small to be valid JSON")
+                    if n > self.max_frame_size:
+                        raise FrameTooLarge(
+                            f"Frame size {n} exceeds maximum {self.max_frame_size}"
+                        )
+                    self._frame_size = n
+                    self._remaining = n
+                else:
+                    # Parse the payload
+                    try:
+                        event = json.loads(self._buffer[HEADER_SIZE:])
+                    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+                        raise FrameError("Malformed JSON frame") from exc
+                    self._buffer.clear()
+                    self._frame_size = -1
+                    self._remaining = HEADER_SIZE
+                    if not isinstance(event, dict):
+                        raise FrameError("Frame payload is not a JSON object")
+                    yield event
 
     async def events(self, source: AsyncIterator[bytes]) -> AsyncIterator[dict]:
-        raise NotImplementedError
-        yield {}
+        async with aclosing(source):
+            async for chunk in source:
+                for event in self.feed(chunk):
+                    yield event
+
+        if self._buffer:
+            raise IncompleteStreamError("Source ended in the middle of a frame")
 
 
 # ---------- Testing ----------
