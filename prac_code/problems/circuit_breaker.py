@@ -96,7 +96,22 @@ class CircuitBreaker:
         backoff_multiplier: float = 1.0,
         max_recovery_timeout: float | None = None,
     ):
-        raise NotImplementedError
+        self.api = api
+        self.failure_threshold = failure_threshold
+        self.recovery_timeout = recovery_timeout
+        self.success_threshold = success_threshold
+        self.clock = clock
+        self.backoff_multiplier = backoff_multiplier
+        self.max_recovery_timeout = max_recovery_timeout or float("inf")
+
+        self._lock = threading.Lock()
+        self._state = 0  # 0 = closed, 1 = open, 2 = half-open
+        self._next_recovery_timeout = recovery_timeout
+        self._consecutive_failures = 0
+        self._trial_id = 0
+        self._in_trial = False
+        self._trial_successes = 0
+        self._last_transition_time = 0.0
 
     def call(self, request: Request) -> Response:
         """
@@ -105,7 +120,74 @@ class CircuitBreaker:
         Returns the API's Response, raises CircuitOpenError if rejected,
         and re-raises any exception from the API unchanged.
         """
-        raise NotImplementedError
+
+        trial_id: int = -1
+
+        with self._lock:
+            if self._state == 1:
+                if (
+                    self.clock() - self._last_transition_time
+                    < self._next_recovery_timeout
+                ):
+                    raise CircuitOpenError("circuit is open")
+                # Transition to half-open
+                self._state = 2
+                self._last_transition_time = self.clock()
+                self._in_trial = True
+                self._trial_id += 1
+                self._trial_successes = 0
+                trial_id = self._trial_id
+            elif self._state == 2:
+                if self._in_trial:
+                    raise CircuitOpenError("circuit is open")
+                self._in_trial = True
+                self._trial_id += 1
+                trial_id = self._trial_id
+
+        response: Response | None = None
+        exception: BaseException | None = None
+        start_time: float = self.clock()
+
+        try:
+            response = self.api(request)
+        except BaseException as e:
+            if isinstance(e, ApiError):
+                exception = e
+            else:
+                # Some unexpected exception, don't count
+                with self._lock:
+                    if trial_id == self._trial_id:
+                        self._in_trial = False
+                raise
+
+        with self._lock:
+            if response:
+                if trial_id == self._trial_id:
+                    self._in_trial = False
+                    self._trial_successes += 1
+                    if self._trial_successes >= self.success_threshold:
+                        self._state = 0
+                        self._consecutive_failures = 0
+                        self._last_transition_time = self.clock()
+                elif self._state == 0 and start_time >= self._last_transition_time:
+                    self._consecutive_failures = 0
+                return response
+            if exception:
+                if trial_id == self._trial_id:
+                    self._in_trial = False
+                    self._state = 1
+                    self._last_transition_time = self.clock()
+                    self._next_recovery_timeout = min(
+                        self._next_recovery_timeout * self.backoff_multiplier,
+                        self.max_recovery_timeout,
+                    )
+                elif self._state == 0 and start_time >= self._last_transition_time:
+                    self._consecutive_failures += 1
+                    if self._consecutive_failures >= self.failure_threshold:
+                        self._state = 1
+                        self._last_transition_time = self.clock()
+                        self._next_recovery_timeout = self.recovery_timeout
+                raise exception
 
 
 # ---------- Testing ----------
