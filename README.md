@@ -33,3 +33,4 @@ Specific domain knowledge on AI inference engineering and infrastructure.
 
 ### Topics
 * [GPU](ai/gpu.md) - Introduction to GPU (Nvidia focused) architecture and its specialization.
+* [Transformer](ai/transformer.md) - Introduction to LLM transform process in modern architecture and the computation required.
