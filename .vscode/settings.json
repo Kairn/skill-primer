@@ -3,6 +3,7 @@
         "EWMA",
         "prac",
         "reqs",
+        "softmax",
         "vnodes"
     ]
 }
