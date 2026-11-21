@@ -25,3 +25,4 @@ just lint
 - [Rate Limiter](./problems/rate_limiter.py) - Multi-tenant weighted rate limiter for concurrent request throttling.
 - [Stream Processor](./problems/stream_processor.py) - Asynchronous generator of events from chunked data stream.
 - [Circuit Breaker](./problems/circuit_breaker.py) - Circuit breaker for an unreliable API.
+- [Idempotent Handler](./problems/idempotent_handler.py) - An idempotent job processing handler that deduplicates requests.
