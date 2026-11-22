@@ -16,6 +16,7 @@ Core requirements:
 Stretch goals:
 - Efficient with high concurrency without serializing all requests.
 - Bounded memory usage.
+- Do NOT cache unexpected transient errors.
 """
 
 from __future__ import annotations
@@ -109,6 +110,22 @@ class SimulatedBackend:
 
 
 # ---------- Implementation ----------
+from concurrent.futures import Future
+
+
+class TransientError(Exception):
+    """Raised when requests fail due to unknown transient issues."""
+
+
+@dataclass
+class JobCache:
+    """Stores the result of a job, along with the time it was completed."""
+
+    request: Request | None = None
+    fut: Future[Response] | None = None
+    completed_at: float | None = None
+
+
 class IdempotentHandler:
     """Idempotent front end for a SimulatedBackend."""
 
@@ -120,11 +137,72 @@ class IdempotentHandler:
     ):
         self._backend = backend
         self._ttl_seconds = ttl_seconds
+        self._cleanup_period = ttl_seconds * 2
         self._clock = clock
 
+        self._lock = threading.Lock()
+        self._cache: dict[str, JobCache] = {}
+        self._cleaner_thread = threading.Thread(target=self._cache_cleaner, daemon=True)
+
+        self._cleaner_thread.start()
+
     def handle(self, request: Request) -> Response:
-        # TODO: implement
-        raise NotImplementedError
+        is_owner: bool = False
+        cache_entry: JobCache | None = None
+
+        with self._lock:
+            key = request.idempotency_key
+            if key in self._cache:
+                cache_entry = self._cache[key]
+                if (
+                    cache_entry.completed_at is not None
+                    and self._clock() - cache_entry.completed_at > self._ttl_seconds
+                ):
+                    # Expired entry, refresh it
+                    cache_entry = JobCache(request=request, fut=Future())
+                    self._cache[key] = cache_entry
+                    is_owner = True
+                elif cache_entry.request != request:
+                    raise KeyConflictError(
+                        f"Idempotency key {key!r} reused with a different request"
+                    )
+            else:
+                cache_entry = JobCache(request=request, fut=Future())
+                self._cache[key] = cache_entry
+                is_owner = True
+
+        if is_owner:
+            try:
+                response = self._backend.process(request)
+                cache_entry.fut.set_result(response)
+                cache_entry.completed_at = self._clock()
+            except BackendError as e:
+                cache_entry.fut.set_exception(e)
+                # Cache negative result too
+                cache_entry.completed_at = self._clock()
+            except BaseException:
+                cache_entry.fut.set_exception(
+                    TransientError("Transient error occurred, please retry.")
+                )
+                # Expire immediately
+                cache_entry.completed_at = self._clock() - self._ttl_seconds - 100
+
+        return cache_entry.fut.result()
+
+    def _cache_cleaner(self) -> None:
+        """Remove expired entries from the cache periodically."""
+        while True:
+            time.sleep(self._cleanup_period)
+            now = self._clock()
+            with self._lock:
+                expired_keys = [
+                    key
+                    for key, cache in self._cache.items()
+                    if cache.completed_at is not None
+                    and now - cache.completed_at > self._ttl_seconds
+                ]
+                for key in expired_keys:
+                    del self._cache[key]
 
 
 # ---------- Testing ----------
