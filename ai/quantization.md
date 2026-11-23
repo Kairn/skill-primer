@@ -1,10 +1,22 @@
 ## Tradeoff
 
-Quantization refers to representing parameters (floating point numbers) used in a LLM in a lower-precision format (e.g. from FP16 to FP8). Doing so can reduce the effective model size, memory bandwidth usage, and floating point operations at the cost of lower quality output. Quantization is more common in inference, though quantization-aware training exists. Quantization is not just a single unified knob; it can be applied at different layers of the transformation process with different memory/compute/quality impact and may require hardware support for certain cases. Choosing the right quantization configuration is about carefully weighing the tradeoffs given the model and usage patterns.
+Quantization refers to representing parameters in a lower-precision format (e.g. from FP16 to FP8). Doing so can reduce the effective model size, memory bandwidth usage, and floating point operations at the cost of lower quality output. Quantization is much more common in inference, though quantization-aware training exists. Quantization is not just a single unified knob; it can be applied at different layers of the transformation process with different memory/compute/quality impact and may require hardware support for certain cases. Choosing the right quantization configuration is about carefully weighing the tradeoffs given the model and usage patterns.
 
 ## Methodology
 
+Quantization/dequantization is basically number encoding/decoding (lossy). With static (offline) quantization, weights are scaled down and frozen offline, and they are restored to original-precision in process when needed by the inference engine. Dequantization needs 3 things per given tensor:
+1. **The low-precision code** - value in fewer bits, replacing original value.
+2. **The scale** - constant used to upscale the code.
+3. **The decode rule** - what derives the resulting value using the 2 values above. It can be a fixed formula or a quick lookup step.
+
+Static scales are computed by running calibration with the given model, a process of measuring how the model behaves on representative data, so that we can pick scales (or make rounding decisions) that fit real values produced during intermediate operations. Each scale value has a scope (a group of weights) it applies to, and having granular scales improves accuracy with more overhead.
+
+Scales can also be dynamically calculated during inference, applicable to dynamic values such as activations and KV cache.
+
 ### Number Format
+For weights, integer formats (e.g. INT8 and INT4) are common, and floating point formats (e.g. FP8 and FP4) are common in activations and weights. The primary difference between INT and FP formats is the uniformity; INTs are uniformly spaced whereas FPs have dynamic range. Because of this, FP8 tolerates outliers better than INT8 and often requires less calibration machinery, but integers are cheaper and more power-efficient to work with.
+
+To further reduce errors caused by outliers (often due to activations instead of weights), especially with 4-bit values, strategies such as AWQ identifies weight channels that have large activation magnitude on calibration data and scales up the weights (and scales down activations) there to achieve less relative error. The effect is similar to keeping "important weights" (~1%) in 16-bit only without actually doing so because that would be awkward/slow for hardware to handle when precisions are mixed.
 
 ## Application
 
