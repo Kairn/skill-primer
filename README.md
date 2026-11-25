@@ -35,3 +35,4 @@ Specific domain knowledge on AI inference engineering and infrastructure.
 * [GPU](ai/gpu.md) - Introduction to GPU (Nvidia focused) architecture and its specialization.
 * [Transformer](ai/transformer.md) - Introduction to LLM transform process in modern architecture and the computation required.
 * [Quantization](ai/quantization.md) - Quantization strategies with their savings, methods, and requirements.
+* [Speculative Decode](ai/spec_decode.md) - The speculative decoding technique in LLM inference.
