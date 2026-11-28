@@ -27,6 +27,7 @@ Modern operating system (Linux centric) internals every capable programmers shou
 ### Topics
 * [SMP](systems/smp.md) - Symmetric multiprocessing, CPU scheduling behavior on modern system architectures.
 * [RAID](systems/raid.md) - RAID (Redundant Array of Inexpensive Disks) basics and the modern application of this technique.
+* [Page Cache](systems/page_cache.md) - Page cache in modern computers.
 
 ## AI/LLM Domain :lobster:
 
